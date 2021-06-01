@@ -1,0 +1,50 @@
+# ainblockchain/workspace:comcomedu-aiffel-1
+
+FROM ainblockchain/workspace:base-cuda11-tf2.4-aiffel
+
+WORKDIR /
+RUN wget https://github.com/tsl0922/ttyd/archive/refs/tags/1.6.2.zip
+RUN unzip 1.6.2.zip
+RUN cd ttyd-1.6.2 && mkdir build && cd build && cmake .. && make && sudo make install
+
+# install VS Code
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+RUN code-server --install-extension ms-python.python
+
+RUN pip3 install torch==1.8.1+cu111 torchvision==0.9.1+cu111 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html
+
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository -y ppa:ubuntugis/ppa && apt update -y
+RUN apt -y install gdal-bin
+RUN apt -y install libgdal-dev 
+RUN pip install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu111/torch1.8.1/index.html
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal 
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
+RUN git clone https://github.com/kakao/khaiii.git \
+  && cd khaiii && mkdir build && cd build && cmake .. \
+  && make all && make resource && pip install cmake \
+  && make install && make package_python \
+  && cd package_python && pip install . && rm -rf ../../../khaiii
+
+COPY ./python-requirements/requirement_ws_1.txt .
+RUN pip install -r requirement_ws_1.txt
+RUN rm -f  requirement_ws_1.txt
+
+# Jupyter Server Port
+EXPOSE 8888
+# ttyd Server Port
+EXPOSE 8887
+# VS Code Server Port
+EXPOSE 8886
+
+ENV HOME=/workspace
+WORKDIR /workspace
+COPY ./jupyter_notebook_config.py $HOME/.jupyter/jupyter_notebook_config.py
+COPY ./aiffel_logo.png /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/logo.png
+COPY ./cropped-favicon.jpeg /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/favicon.ico
+COPY ./main.min.js /opt/conda/lib/python3.7/site-packages/notebook/static/tree/js/main.min.js
+ENV WORKSPACE_HOME /workspace
+
+ENTRYPOINT jupyter notebook  --NotebookApp.token=$DEFAULT_JUPYTER_TOKEN --ip=0.0.0.0 --allow-root --NotebookApp.notebook_dir=$WORKSPACE_HOME & ttyd -p 8887 /bin/bash & code-server --bind-addr=0.0.0.0:8886 --auth none

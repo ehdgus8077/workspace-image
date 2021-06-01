@@ -1,0 +1,55 @@
+# ainblockchain/workspace:base-tf2.4-aiffel
+FROM ainblockchain/workspace:ubuntu18.04
+
+RUN pip install --no-cache-dir tensorflow==2.4.0 && clean-layer.sh
+
+
+ENV HOME=/aiffel
+WORKDIR /aiffel
+RUN jupyter notebook --generate-config
+COPY ./jupyter_notebook_config.py $HOME/.jupyter/jupyter_notebook_config.py
+COPY ./aiffel_logo.png /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/logo.png
+COPY ./cropped-favicon.jpeg /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/favicon.ico
+COPY ./main.min.js /opt/conda/lib/python3.7/site-packages/notebook/static/tree/js/main.min.js
+
+WORKDIR /
+RUN apt-get install lsof
+RUN apt-get -qq -y install fonts-nanum
+COPY ./python-requirements/requirement_lms_cpu.txt .
+RUN pip install -r requirement_lms_cpu.txt
+RUN rm requirement_gpu.txt
+
+COPY ./aiffel_logo.png /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/logo.png
+COPY ./cropped-favicon.jpeg /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/favicon.ico
+RUN wget https://github.com/tsl0922/ttyd/archive/refs/tags/1.6.2.zip
+RUN unzip 1.6.2.zip
+RUN cd ttyd-1.6.2 && mkdir build && cd build && cmake .. && make && sudo make install
+WORKDIR /aiffel
+
+WORKDIR /
+RUN apt-get -y update \
+  &&  DEBIAN_FRONTEND=noninteractive apt-get install -y dbus-x11 \
+  firefox \
+  xfce4 \
+  xfce4-panel \
+  xfce4-session \
+  xfce4-settings \
+  xorg \
+  xubuntu-icon-theme
+
+# Remove light-locker to prevent screen lock
+RUN wget 'https://sourceforge.net/projects/turbovnc/files/2.2.5/turbovnc_2.2.5_amd64.deb/download' -O turbovnc_2.2.5_amd64.deb && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -q ./turbovnc_2.2.5_amd64.deb && \
+  DEBIAN_FRONTEND=noninteractive apt-get remove -y -q light-locker && \
+  rm ./turbovnc_2.2.5_amd64.deb && \
+  ln -s /opt/TurboVNC/bin/* /usr/local/bin/
+
+# apt-get may result in root-owned directories/files under $HOME
+RUN chown -R $NB_UID:$NB_GID $HOME
+
+ADD jupyter-desktop-server /opt/install
+
+RUN cd /opt/install && \
+  conda env update -n base --file environment.yml
+
+ENTRYPOINT jupyter notebook  --NotebookApp.token=$DEFAULT_JUPYTER_TOKEN --ip=0.0.0.0 --allow-root --NotebookApp.notebook_dir=$HOME & ttyd -p 8887 /bin/bash

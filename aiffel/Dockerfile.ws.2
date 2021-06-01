@@ -1,0 +1,75 @@
+# ainblockchain/workspace:comcomedu-aiffel-4
+
+FROM ainblockchain/workspace:ubuntu18.04.cuda11
+
+ENV HOME=/workspace
+WORKDIR /workspace
+COPY ./jupyter_notebook_config.py $HOME/.jupyter/jupyter_notebook_config.py
+COPY ./aiffel_logo.png /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/logo.png
+COPY ./cropped-favicon.jpeg /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/favicon.ico
+COPY ./main.min.js /opt/conda/lib/python3.7/site-packages/notebook/static/tree/js/main.min.js
+
+RUN apt-get update && apt-get install -y libgl1-mesa-dev graphviz g++ openjdk-8-jdk sqlitebrowser
+
+WORKDIR /
+RUN apt-get install lsof
+RUN apt-get -qq -y install fonts-nanum
+
+COPY ./aiffel_logo.png /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/logo.png
+COPY ./cropped-favicon.jpeg /opt/conda/lib/python3.7/site-packages/notebook/static/base/images/favicon.ico
+RUN wget https://github.com/tsl0922/ttyd/archive/refs/tags/1.6.2.zip
+RUN unzip 1.6.2.zip
+RUN cd ttyd-1.6.2 && mkdir build && cd build && cmake .. && make && sudo make install
+WORKDIR /aiffel
+
+WORKDIR /
+RUN apt-get -y update \
+  &&  DEBIAN_FRONTEND=noninteractive apt-get install -y dbus-x11 \
+  firefox \
+  xfce4 \
+  xfce4-panel \
+  xfce4-session \
+  xfce4-settings \
+  xorg \
+  xubuntu-icon-theme
+
+# Remove light-locker to prevent screen lock
+RUN wget 'https://sourceforge.net/projects/turbovnc/files/2.2.5/turbovnc_2.2.5_amd64.deb/download' -O turbovnc_2.2.5_amd64.deb && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -q ./turbovnc_2.2.5_amd64.deb && \
+  DEBIAN_FRONTEND=noninteractive apt-get remove -y -q light-locker && \
+  rm ./turbovnc_2.2.5_amd64.deb && \
+  ln -s /opt/TurboVNC/bin/* /usr/local/bin/
+
+# apt-get may result in root-owned directories/files under $HOME
+RUN chown -R $NB_UID:$NB_GID $HOME
+
+ADD jupyter-desktop-server /opt/install
+
+RUN cd /opt/install && \
+  conda env update -n base --file environment.yml
+
+# install VS Code
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+RUN code-server --install-extension ms-python.python
+
+
+COPY ./python-requirements/requirement_ws_2.txt .
+RUN pip install -r requirement_ws_2.txt
+RUN rm -f requirement_ws_2.txt
+
+
+RUN conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.0 -c pytorch -c conda-forge
+
+
+# Jupyter Server Port
+EXPOSE 8888
+# ttyd Server Port
+EXPOSE 8887
+# VS Code Server Port
+EXPOSE 8886
+
+ENV WORKSPACE_HOME /workspace
+WORKDIR /workspace
+ENV HOME /workspace
+
+ENTRYPOINT jupyter notebook  --NotebookApp.token=$DEFAULT_JUPYTER_TOKEN --ip=0.0.0.0 --allow-root --NotebookApp.notebook_dir=$WORKSPACE_HOME & ttyd -p 8887 /bin/bash & code-server --bind-addr=0.0.0.0:8886 --auth none
