@@ -44,7 +44,7 @@ RUN chown -R $NB_UID:$NB_GID $HOME
 ADD jupyter-desktop-server-copy /opt/install
 
 RUN cd /opt/install && \
-  conda env create -n base --file environment.yml
+  conda env update -n base --file environment.yml
 
 # install VS Code
 RUN curl -fsSL https://code-server.dev/install.sh | sh
