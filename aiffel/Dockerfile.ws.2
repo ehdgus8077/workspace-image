@@ -50,13 +50,11 @@ RUN cd /opt/install && \
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 RUN code-server --install-extension ms-python.python
 
+RUN conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.0 -c pytorch -c conda-forge
 
 COPY ./python-requirements/requirement_ws_2.txt .
 RUN pip install -r requirement_ws_2.txt
 RUN rm -f requirement_ws_2.txt
-
-
-RUN conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.0 -c pytorch -c conda-forge
 
 
 # Jupyter Server Port
